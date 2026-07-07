@@ -1,0 +1,13 @@
+# Salvar como .streamlit/config.toml ao lado do nai_chat_app.py
+# Reproduz a paleta original do app via tema nativo, sem CSS injetado.
+
+[theme]
+base = "dark"
+primaryColor = "#7c6ff7"
+backgroundColor = "#1a1b2e"
+secondaryBackgroundColor = "#16172a"
+textColor = "#e2e4f0"
+font = "sans serif"
+
+[server]
+headless = true
