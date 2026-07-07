@@ -1,0 +1,11 @@
+# Aplicar no cluster de management (ou workspace) do NKP, no namespace flux-system
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: nai-endpoint-chat
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: https://github.com/IMCx87/appai
+  ref:
+    branch: main

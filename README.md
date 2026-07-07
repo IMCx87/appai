@@ -63,8 +63,48 @@ nai-endpoint-chat/
 ├── requirements.txt        # streamlit + requests, nothing else
 ├── .streamlit/
 │   └── config.toml         # Dark theme
+├── Dockerfile
+├── .github/workflows/
+│   └── docker-build.yml    # Builds and pushes the image to Docker Hub on every push
+├── k8s/                    # Plain manifests (Namespace, Deployment, Service, Kustomization)
+├── flux/                   # Flux GitRepository + Kustomization for GitOps deployment
 └── .gitignore
 ```
+
+## Docker
+
+The image is built and pushed to Docker Hub (`imcx87/appai`) automatically by
+`.github/workflows/docker-build.yml` on every push, tagged with the branch name
+(plus `latest` for `main`). Requires the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
+repository secrets.
+
+Build locally:
+
+```bash
+docker build -t imcx87/appai:local .
+docker run -p 8501:8501 imcx87/appai:local
+```
+
+## Kubernetes / GitOps (Nutanix Kubernetes Platform)
+
+`k8s/` has plain manifests deployable with:
+
+```bash
+kubectl apply -k k8s/
+```
+
+For GitOps via NKP's built-in Flux, apply the resources in `flux/` on the
+management/workspace cluster (namespace `flux-system`):
+
+```bash
+kubectl apply -f flux/gitrepository.yaml
+kubectl apply -f flux/kustomization.yaml
+```
+
+This makes Flux track the `main` branch of this repo and reconcile `k8s/`
+into the `appai` namespace every 5 minutes. There's no image-update automation
+configured — bumping the image tag in `k8s/deployment.yaml` and pushing is
+what triggers a new rollout. The Service is `NodePort` on `30851`.
 
 ## Roadmap
 

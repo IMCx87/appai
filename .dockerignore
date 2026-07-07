@@ -1,0 +1,11 @@
+.git
+.github
+k8s
+flux
+__pycache__
+*.pyc
+.venv
+venv
+.env
+*.log
+README.md

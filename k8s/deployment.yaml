@@ -1,0 +1,37 @@
+# ==============================================================
+# DEPLOYMENT — nai-endpoint-chat
+# ==============================================================
+# App demo Streamlit, stateless, imagem publicada no Docker Hub
+# em imcx87/appai. Sem replicas/HPA — é só uma demo.
+# ==============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nai-endpoint-chat
+  namespace: appai
+  labels:
+    app: nai-endpoint-chat
+    managed-by: claude-code
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nai-endpoint-chat
+  template:
+    metadata:
+      labels:
+        app: nai-endpoint-chat
+    spec:
+      containers:
+        - name: nai-endpoint-chat
+          image: imcx87/appai:main
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8501
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
