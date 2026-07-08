@@ -38,6 +38,8 @@ DEFAULTS = {
     "verify_tls": False,
     "show_debug": False,
     "max_retries": 4,
+    "price_in_per_1m": 5.0,
+    "price_out_per_1m": 15.0,
 }
 for _k, _v in DEFAULTS.items():
     st.session_state.setdefault(_k, _v)
@@ -114,6 +116,15 @@ def log_request(endpoint: str, headers: dict, body: dict):
     log += f"Headers: {json.dumps(redact(headers), indent=2)}\n"
     log += f"Body: {json.dumps(body, indent=2, ensure_ascii=False)}\n"
     st.session_state.debug_log = log
+
+
+def estimate_cost(in_tokens: int, out_tokens: int) -> float:
+    """Custo estimado se a mesma troca de mensagens rodasse em uma cloud pública,
+    com base nos preços por 1M de tokens configurados na sidebar."""
+    return (
+        in_tokens / 1_000_000 * st.session_state.price_in_per_1m
+        + out_tokens / 1_000_000 * st.session_state.price_out_per_1m
+    )
 
 
 def fetch_models() -> list:
@@ -222,6 +233,7 @@ def finalize_metrics(metrics: dict) -> dict:
     if end and start and ttft is not None and out_tokens > 1:
         gen_time = max(end - start - ttft, 1e-6)
         meta["tps"] = out_tokens / gen_time
+    meta["cost"] = estimate_cost(meta["in"], meta["out"])
     return meta
 
 
@@ -233,6 +245,8 @@ def format_meta(meta: dict) -> str:
         parts.append(f"TTFT {meta['ttft'] * 1000:.0f} ms")
     if meta.get("out"):
         parts.append(f"{meta['in']} in / {meta['out']} out tokens")
+    if meta.get("cost") is not None:
+        parts.append(f"💰 ${meta['cost']:.4f} (cloud pública)")
     if meta.get("model"):
         parts.append(meta["model"])
     return "  ·  ".join(parts)
@@ -254,6 +268,7 @@ def call_blocking(endpoint: str, headers: dict, body: dict, notify=None) -> tupl
     }
     if out > 0 and elapsed > 0:
         meta["tps"] = out / elapsed
+    meta["cost"] = estimate_cost(meta["in"], meta["out"])
     return content, meta
 
 
@@ -303,6 +318,21 @@ with st.sidebar:
         st.slider("Max tokens", 64, 8192, key="max_tokens", step=64)
         st.slider("Retries em erro transitório", 1, 8, key="max_retries",
                   help="Inclui o 404 'hibernated endpoint' do NAI.")
+
+    with st.expander("💰 Custo (cloud pública)"):
+        st.caption(
+            "Preços de referência para estimar quanto essa mesma troca de "
+            "mensagens custaria em uma cloud pública (ex.: OpenAI, Azure "
+            "OpenAI, Bedrock). Ajuste conforme o provedor comparado."
+        )
+        st.number_input(
+            "Preço por 1M tokens de entrada (US$)",
+            key="price_in_per_1m", min_value=0.0, step=0.5, format="%.2f",
+        )
+        st.number_input(
+            "Preço por 1M tokens de saída (US$)",
+            key="price_out_per_1m", min_value=0.0, step=0.5, format="%.2f",
+        )
 
     st.toggle("Streaming (SSE)", key="use_stream")
     st.toggle("Verificar TLS", key="verify_tls")
