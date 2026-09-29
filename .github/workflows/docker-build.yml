@@ -21,7 +21,9 @@ jobs:
       - name: Compute tags
         id: tags
         run: |
-          TAGS="imcx87/appai:${{ github.ref_name }}"
+          # Branches podem ter "/" (ex.: feature/x), inválido em tag de imagem
+          BRANCH="$(echo "${{ github.ref_name }}" | tr '/' '-')"
+          TAGS="imcx87/appai:${BRANCH},imcx87/appai:sha-${GITHUB_SHA::7}"
           if [ "${{ github.ref_name }}" = "main" ]; then
             TAGS="$TAGS,imcx87/appai:latest"
           fi
@@ -30,5 +32,8 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

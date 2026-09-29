@@ -1,8 +1,8 @@
 # ==============================================================
-# DEPLOYMENT — nai-endpoint-chat
+# DEPLOYMENT — ai-infra-benchmark (nai-endpoint-chat)
 # ==============================================================
 # App demo Streamlit, stateless, imagem publicada no Docker Hub
-# em imcx87/appai. Sem replicas/HPA — é só uma demo.
+# em imcx87/appai. Uma réplica, sem HPA — é só uma demo.
 # ==============================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -11,6 +11,8 @@ metadata:
   namespace: appai
   labels:
     app: nai-endpoint-chat
+    app.kubernetes.io/name: nai-endpoint-chat
+    app.kubernetes.io/part-of: appai
     managed-by: claude-code
 spec:
   replicas: 1
@@ -22,16 +24,42 @@ spec:
       labels:
         app: nai-endpoint-chat
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: nai-endpoint-chat
           image: imcx87/appai:main
           imagePullPolicy: Always
           ports:
-            - containerPort: 8501
+            - name: http
+              containerPort: 8501
+          # Valores iniciais da sidebar (opcional). Descomente para pré-configurar.
+          # env:
+          #   - name: NAI_API_URL
+          #     value: "http://<nai-endpoint>/enterpriseai/v1"
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 200m
+              memory: 256Mi
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: "1"
+              memory: 1Gi
