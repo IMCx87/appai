@@ -74,7 +74,7 @@ The sidebar footer shows the app version, the commit it was built from, whether 
 
 ## Docker
 
-`.github/workflows/docker-build.yml` runs lint (`ruff`) and tests (`pytest`) on every push and pull request. On pushes it then builds a **multi-arch image (`linux/amd64`, `linux/arm64`)** and pushes it to Docker Hub (`imcx87/appai`) with tags for the branch name and `sha-<commit>`; on `main` also `latest` and `main-<timestamp>-<sha>` (sortable, used by Flux image automation). The commit and build date are baked into the image. Requires the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets. Commits that only touch `k8s/`, `flux/` or Markdown don't trigger a new image.
+`.github/workflows/docker-build.yml` runs lint (`ruff`) and tests (`pytest`) on every push and pull request. On pushes it then builds a **multi-arch image (`linux/amd64`, `linux/arm64`)** and pushes it to Docker Hub (`imcx87/appai`) with tags for the branch name and `sha-<commit>`; on `main` also `latest` and `main-<timestamp>-<sha>` (sortable, used by Flux image automation). The commit and build date are baked into the image. Pushing requires the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets; without them the job still builds both architectures (so the Dockerfile is validated) and emits a warning instead of pushing. Commits that only touch `k8s/`, `flux/` or Markdown don't trigger a new image.
 
 The container runs as non-root (UID 10001), exposes port `8501` and keeps history in the `/data` volume.
 
