@@ -45,10 +45,13 @@ def throughput_latency(rows: list, mode: str, slo: dict | None = None) -> go.Fig
     x = [str(r["load"]) for r in rows]
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     colors = [TEAL if r["slo_pass"] else RED for r in rows]
-    fig.add_trace(go.Bar(x=x, y=[r["goodput_rps"] for r in rows], name="Goodput (req/s no SLO)",
-                         marker_color=colors, opacity=0.35), secondary_y=False)
     fig.add_trace(go.Scatter(x=x, y=[r["throughput"] for r in rows], mode="lines+markers",
-                             name="Vazão agregada (tok/s)", line=dict(color=PURPLE, width=3)),
+                             name="Vazão agregada (tok/s)", line=dict(color=PURPLE, width=3),
+                             marker=dict(color=colors, size=13,
+                                         line=dict(color=PURPLE, width=2)),
+                             customdata=[[r["goodput_rps"], r["slo_ok_pct"]] for r in rows],
+                             hovertemplate="%{y:.0f} tok/s · goodput %{customdata[0]} req/s"
+                                           " · %{customdata[1]}% no SLO<extra></extra>"),
                   secondary_y=False)
     fig.add_trace(go.Scatter(x=x, y=[r["ttft_p95"] for r in rows], mode="lines+markers",
                              name="TTFT p95 (ms)",
@@ -57,9 +60,9 @@ def throughput_latency(rows: list, mode: str, slo: dict | None = None) -> go.Fig
         fig.add_trace(go.Scatter(x=x, y=[slo["ttft_ms"]] * len(x), mode="lines",
                                  name=f"SLO TTFT ({slo['ttft_ms']:.0f} ms)",
                                  line=dict(color=RED, width=1, dash="dash")), secondary_y=True)
-    _layout(fig, "Vazão × latência por nível (barras: goodput, verde = dentro do SLO)")
+    _layout(fig, "Vazão × latência por nível (marcador verde = nível dentro do SLO)")
     fig.update_xaxes(type="category", title_text=load_label(mode))
-    fig.update_yaxes(title_text="tok/s · req/s", rangemode="tozero", secondary_y=False)
+    fig.update_yaxes(title_text="tok/s", rangemode="tozero", secondary_y=False)
     fig.update_yaxes(title_text="ms", rangemode="tozero", showgrid=False, secondary_y=True)
     return fig
 
