@@ -1,8 +1,17 @@
 FROM python:3.11-slim
 
+# Versão/commit exibidos na sidebar e gravados em cada execução (preenchidos pelo CI)
+ARG APP_VERSION=""
+ARG GIT_SHA=""
+ARG BUILD_DATE=""
+
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
+    APP_VERSION=${APP_VERSION} \
+    GIT_SHA=${GIT_SHA} \
+    BUILD_DATE=${BUILD_DATE} \
+    APPAI_DATA_DIR=/data
 
 WORKDIR /app
 
@@ -10,11 +19,15 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY app.py .
+COPY appai/ appai/
 COPY .streamlit/ .streamlit/
 
-# UID numérico não-root: compatível com runAsNonRoot / Pod Security "restricted"
-RUN useradd --uid 10001 --create-home appuser && chown -R appuser /app
+# UID numérico não-root: compatível com runAsNonRoot / Pod Security "restricted".
+# /data guarda o histórico (SQLite); no Kubernetes é um PVC.
+RUN useradd --uid 10001 --create-home appuser \
+    && mkdir -p /data && chown -R appuser /app /data
 USER 10001
+VOLUME ["/data"]
 
 EXPOSE 8501
 

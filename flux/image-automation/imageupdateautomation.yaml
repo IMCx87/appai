@@ -1,0 +1,26 @@
+# Atualiza os marcadores {"$imagepolicy": ...} em ./k8s e faz push em main.
+# "[skip ci]" e o paths-ignore do workflow evitam o loop commit → build → commit.
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageUpdateAutomation
+metadata:
+  name: nai-endpoint-chat
+  namespace: flux-system
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: nai-endpoint-chat-write
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: fluxcdbot
+        email: fluxcdbot@users.noreply.github.com
+      messageTemplate: "chore(deploy): atualiza imagem do appai [skip ci]"
+    push:
+      branch: main
+  update:
+    path: ./k8s
+    strategy: Setters

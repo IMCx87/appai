@@ -1,0 +1,14 @@
+# Flux Image Automation (opcional): faz o Flux descobrir a imagem nova no
+# Docker Hub e commitar a tag em k8s/deployment.yaml — rollout por GitOps de
+# verdade, com a versão rastreável no Git.
+# Requer os controllers image-reflector e image-automation (flux install
+# --components-extra=image-reflector-controller,image-automation-controller).
+# API v1beta2: servida do Flux 2.0 ao 2.6+; em Flux >= 2.6 pode usar v1.
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: nai-endpoint-chat
+  namespace: flux-system
+spec:
+  image: imcx87/appai
+  interval: 5m
