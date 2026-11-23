@@ -1,4 +1,4 @@
-# Salvar como .streamlit/config.toml ao lado do nai_chat_app.py
+# Tema escuro do app (opcional): .streamlit/config.toml ao lado do app.py
 # Reproduz a paleta original do app via tema nativo, sem CSS injetado.
 
 [theme]
