@@ -1,0 +1,18 @@
+# GitRepository com credencial de escrita, usada só pela automação para
+# commitar a nova tag. Crie a deploy key (com permissão de escrita) com:
+#   flux create secret git appai-deploy-key \
+#     --url=ssh://git@github.com/IMCx87/appai --namespace=flux-system
+# e cadastre a chave pública impressa em GitHub > Settings > Deploy keys
+# marcando "Allow write access".
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: nai-endpoint-chat-write
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: ssh://git@github.com/IMCx87/appai
+  ref:
+    branch: main
+  secretRef:
+    name: appai-deploy-key

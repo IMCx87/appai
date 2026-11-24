@@ -1,19 +1,61 @@
-name: Build and push Docker image
+name: Test, build and push Docker image
 
 on:
   push:
     branches:
       - "**"
+    # Commits só de manifests/docs (inclusive os do Flux Image Automation)
+    # não geram imagem nova — senão: commit → build → nova tag → commit → ...
+    paths-ignore:
+      - "k8s/**"
+      - "flux/**"
+      - "**.md"
+  pull_request:
+
+permissions:
+  contents: read
 
 jobs:
-  build-push:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt pytest ruff
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Single-file version in sync
+        run: python tools/build_standalone.py --check
+
+      - name: Test
+        run: pytest -q
+
+  build-push:
+    needs: test
+    # PRs de forks não têm os secrets do Docker Hub: só testam.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      # Sem os secrets do Docker Hub a imagem é só compilada (valida o
+      # Dockerfile nas duas arquiteturas), sem login nem push.
+      HAS_HUB: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
+        if: env.HAS_HUB == 'true'
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -23,17 +65,30 @@ jobs:
         run: |
           # Branches podem ter "/" (ex.: feature/x), inválido em tag de imagem
           BRANCH="$(echo "${{ github.ref_name }}" | tr '/' '-')"
-          TAGS="imcx87/appai:${BRANCH},imcx87/appai:sha-${GITHUB_SHA::7}"
+          SHORT="${GITHUB_SHA::7}"
+          TS="$(date -u +%Y%m%d%H%M%S)"
+          TAGS="imcx87/appai:${BRANCH},imcx87/appai:sha-${SHORT}"
           if [ "${{ github.ref_name }}" = "main" ]; then
-            TAGS="$TAGS,imcx87/appai:latest"
+            # main-<timestamp>-<sha>: ordenável, usado pela ImagePolicy do Flux
+            TAGS="$TAGS,imcx87/appai:latest,imcx87/appai:main-${TS}-${SHORT}"
           fi
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
-          push: true
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.HAS_HUB == 'true' }}
           tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILD_DATE=${{ steps.tags.outputs.date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Publish status
+        if: env.HAS_HUB != 'true'
+        run: >-
+          echo "::warning::Imagem compilada mas NÃO publicada: configure os secrets
+          DOCKERHUB_USERNAME e DOCKERHUB_TOKEN (Settings > Secrets and variables > Actions)."

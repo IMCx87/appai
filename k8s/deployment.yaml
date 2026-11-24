@@ -1,8 +1,11 @@
 # ==============================================================
 # DEPLOYMENT — ai-infra-benchmark (nai-endpoint-chat)
 # ==============================================================
-# App demo Streamlit, stateless, imagem publicada no Docker Hub
-# em imcx87/appai. Uma réplica, sem HPA — é só uma demo.
+# App demo Streamlit, imagem publicada no Docker Hub em imcx87/appai.
+# Uma réplica (o histórico SQLite fica num PVC RWO), sem HPA.
+#
+# A tag da imagem é atualizada pelo Flux Image Automation (flux/image-automation/)
+# através do marcador $imagepolicy abaixo. Sem a automação, fica em :main.
 # ==============================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -16,6 +19,8 @@ metadata:
     managed-by: claude-code
 spec:
   replicas: 1
+  strategy:
+    type: Recreate  # PVC RWO: o pod novo só sobe depois que o antigo solta o volume
   selector:
     matchLabels:
       app: nai-endpoint-chat
@@ -27,19 +32,29 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
+        fsGroup: 10001  # torna o PVC gravável pelo usuário não-root
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: nai-endpoint-chat
-          image: imcx87/appai:main
+          image: imcx87/appai:main # {"$imagepolicy": "flux-system:nai-endpoint-chat"}
           imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8501
-          # Valores iniciais da sidebar (opcional). Descomente para pré-configurar.
-          # env:
-          #   - name: NAI_API_URL
-          #     value: "http://<nai-endpoint>/enterpriseai/v1"
+          env:
+            - name: APPAI_DATA_DIR
+              value: /data
+            # Valores iniciais da sidebar (opcional). Descomente para pré-configurar.
+            # - name: NAI_API_URL
+            #   value: "http://<nai-endpoint>/enterpriseai/v1"
+            # - name: VLLM_METRICS_URL
+            #   value: "http://<service-do-modelo>.<ns>:8000/metrics"
+            # - name: PROMETHEUS_URL
+            #   value: "http://prometheus-operated.monitoring:9090"
+          volumeMounts:
+            - name: data
+              mountPath: /data
           readinessProbe:
             httpGet:
               path: /_stcore/health
@@ -63,3 +78,7 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: appai-data

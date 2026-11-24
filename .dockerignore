@@ -9,3 +9,10 @@ venv
 .env
 *.log
 README.md
+tests
+data
+.pytest_cache
+.ruff_cache
+pyproject.toml
+app_standalone.py
+tools

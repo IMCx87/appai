@@ -1,0 +1,15 @@
+# Histórico de execuções (SQLite) do app. RWO + 1 réplica + strategy Recreate.
+# Sem storageClassName: usa a StorageClass default do cluster (em NKP, o CSI
+# da Nutanix). Defina uma explícita se quiser, ex.: nutanix-volume.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: appai-data
+  namespace: appai
+  labels:
+    app: nai-endpoint-chat
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
