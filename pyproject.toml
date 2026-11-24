@@ -1,6 +1,7 @@
 [tool.ruff]
 line-length = 110
 target-version = "py311"
+extend-exclude = ["app_standalone.py"]  # gerado por tools/build_standalone.py
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "B"]

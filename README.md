@@ -44,6 +44,28 @@ python -m appai.mock_server --port 8000 --max-batch 16 --wake-seconds 20
 # hibernate it with: curl -X POST localhost:8000/admin/hibernate
 ```
 
+## Run as a single file
+
+`app_standalone.py` is the **whole app in one file**: copy it anywhere (a laptop, a jump host, a VM in the customer's lab) and run it with Streamlit. No clone, no package, same features: chat, benchmark, telemetry, cold start, RAG, history/A-B, cost and the built-in mock.
+
+```bash
+pip install streamlit requests plotly
+streamlit run app_standalone.py --theme.base dark
+python app_standalone.py mock --port 8000      # mock vLLM/NAI server, no Streamlit needed
+```
+
+History goes to `./data/appai.db` next to where you run it (`APPAI_DATA_DIR` changes that). The sidebar shows `arquivo único` and a source hash, so you know which build a copy came from.
+
+The file is **generated** from `appai/` + `app.py` by `tools/build_standalone.py`. It embeds each module's source and registers an importer that serves them, so the single file runs exactly the same code as the package; nothing is rewritten by hand. Don't edit it: change the package and regenerate. CI fails if the committed copy is out of date.
+
+So there are three ways to run the same app:
+
+| Mode | Command | Good for |
+|---|---|---|
+| Single file | `streamlit run app_standalone.py` | Copying to any machine with Python, quick demos |
+| Repository clone | `streamlit run app.py` | Development |
+| Container / Kubernetes | `docker run …` / `kubectl apply -k k8s/` | Shared deployment on NKP, GitOps |
+
 ## How to read the results
 
 **SLO, capacity and goodput.** A level *passes* when TTFT p95 and ITL p95 are within target and the error rate is under the limit. *Capacity* is the highest tested load at which that level and all lower levels pass. *Goodput* counts only the requests that individually met the SLO. Peak throughput is still shown, but it is usually reached when latency is already unacceptable, so it overstates what the endpoint can deliver with quality.
@@ -114,11 +136,14 @@ kubectl apply -k flux/image-automation/
 ```bash
 pip install -r requirements.txt pytest ruff
 ruff check .
-pytest -q        # unit + integration tests against the mock server, plus Streamlit AppTest
+python tools/build_standalone.py   # regenerate app_standalone.py after changing appai/ or app.py
+pytest -q        # unit + integration tests against the mock server, Streamlit AppTest,
+                 # and the single-file build (in sync + runs alone from an empty folder)
 ```
 
 ```
 ├── app.py                    # Streamlit entry point (thin: page config + tabs)
+├── app_standalone.py         # GENERATED single-file version (do not edit)
 ├── appai/
 │   ├── client.py             # OpenAI-compatible HTTP client, SSE parsing, retries
 │   ├── bench.py              # closed/open-loop sweeps, summaries, SLO, capacity, goodput
@@ -132,6 +157,7 @@ pytest -q        # unit + integration tests against the mock server, plus Stream
 │   ├── mock_server.py        # vLLM/NAI imitation for demos and tests
 │   ├── version.py            # version / commit / build date
 │   └── ui/                   # one module per tab + sidebar + session state
+├── tools/build_standalone.py # generates app_standalone.py
 ├── tests/                    # pytest suite
 ├── Dockerfile · requirements.txt · pyproject.toml · .streamlit/config.toml
 ├── .github/workflows/docker-build.yml

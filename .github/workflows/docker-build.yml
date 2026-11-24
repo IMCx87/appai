@@ -32,6 +32,9 @@ jobs:
       - name: Lint
         run: ruff check .
 
+      - name: Single-file version in sync
+        run: python tools/build_standalone.py --check
+
       - name: Test
         run: pytest -q
 
