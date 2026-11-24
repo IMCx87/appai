@@ -281,7 +281,7 @@ def diagnose(rows: list, infra: list, unit: str = "usuários simultâneos") -> l
             load_gain = L / prev_row["load"] - 1 if prev_row["load"] else 0
             if load_gain >= 0.5 and gain < 0.1:
                 txt = (f"De {prev_row['load']:g} para {L:g} {unit} a vazão agregada "
-                       f"variou só {gain * 100:+.0f}%: o endpoint parece ter atingido "
+                       f"variou só {int(round(gain * 100)):+d}%: o endpoint parece ter atingido "
                        "a saturação; carga extra vira fila e latência.")
                 if util is not None and util >= 85:
                     txt += f" A GPU estava em {util:.0f}% de utilização média."

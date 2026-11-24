@@ -16,7 +16,7 @@ Tema escuro (opcional): streamlit run app_standalone.py --theme.base dark
 (ou o .streamlit/config.toml do repositório ao lado do arquivo).
 
 NÃO EDITE: gerado por tools/build_standalone.py a partir de appai/ e app.py
-(fonte f7ec34d18d). Altere o pacote e rode o gerador de novo.
+(fonte ad1049b4c5). Altere o pacote e rode o gerador de novo.
 """
 # ruff: noqa
 # fmt: off
@@ -1191,10 +1191,18 @@ def make_handler(sim: Sim):
     return H
 
 
+class _Server(ThreadingHTTPServer):
+    # O padrão do socketserver é 5 conexões pendentes: com dezenas de usuários
+    # simultâneos o kernel descarta SYNs e o cliente só tenta de novo após ~1 s
+    # (retransmissão TCP) — um TTFT falso que nada tem a ver com a simulação.
+    request_queue_size = 1024
+    daemon_threads = True
+
+
 def serve(port: int = 8000, host: str = "127.0.0.1", **kw):
     """Sobe o mock em uma thread; devolve (server, sim)."""
     sim = Sim(**kw)
-    srv = ThreadingHTTPServer((host, port), make_handler(sim))
+    srv = _Server((host, port), make_handler(sim))
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv, sim
@@ -1915,7 +1923,7 @@ def diagnose(rows: list, infra: list, unit: str = "usuários simultâneos") -> l
             load_gain = L / prev_row["load"] - 1 if prev_row["load"] else 0
             if load_gain >= 0.5 and gain < 0.1:
                 txt = (f"De {prev_row['load']:g} para {L:g} {unit} a vazão agregada "
-                       f"variou só {gain * 100:+.0f}%: o endpoint parece ter atingido "
+                       f"variou só {int(round(gain * 100)):+d}%: o endpoint parece ter atingido "
                        "a saturação; carga extra vira fila e latência.")
                 if util is not None and util >= 85:
                     txt += f" A GPU estava em {util:.0f}% de utilização média."
@@ -3451,7 +3459,7 @@ def dataset_stats(dataset: list) -> dict:
 '''
 }
 _PACKAGES = {'appai', 'appai.ui'}
-_DIGEST = "f7ec34d18d"
+_DIGEST = "ad1049b4c5"
 
 
 class _AppaiBundleImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):

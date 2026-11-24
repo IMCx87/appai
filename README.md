@@ -12,6 +12,28 @@ Generic LLM benchmarks report numbers. This one is built to answer the questions
 
 It runs three ways from the same code: as a **single file** you copy anywhere (`streamlit run app_standalone.py`), from a **clone** of this repository, or as a **container** on Kubernetes/NKP with GitOps. See [Ways to run](#ways-to-run).
 
+## From zero to "how many users?" in five minutes
+
+No GPU, no cluster, no clone. One file, three commands:
+
+```bash
+curl -O https://raw.githubusercontent.com/IMCx87/appai/main/app_standalone.py
+pip install streamlit requests plotly
+streamlit run app_standalone.py --theme.base dark
+```
+
+Then a few clicks. In the sidebar, open *🧪 Mock local* and click **Usar mock embutido**: a simulated vLLM/NAI endpoint starts inside the app and every URL is filled in. In **📊 Benchmark**, add `16` and `32` to the concurrency levels and click **▶ Executar benchmark**.
+
+About a minute and a half later the screen shows (the UI is in Portuguese):
+
+> 🎯 **Capacidade dentro do SLO: 16** usuários simultâneos (falhou em 32)
+>
+> Em 32 usuários simultâneos o SLO deixou de ser cumprido (TTFT p95 ≈ 5800 ms …). Na mesma janela havia até 16 requisição(ões) na fila do servidor, o que pode estar relacionado ao aumento do TTFT…
+>
+> De 16 para 32 usuários simultâneos a vazão agregada variou só +0%: o endpoint parece ter atingido a saturação; carga extra vira fila e latência.
+
+In plain words: up to 16 users get a first token in about 0.2 s; at 32, the extra users wait in line and the first token takes almost 6 s, while total throughput doesn't grow at all. That is the whole point of the tool: a number the customer understands, and the infrastructure reason behind it. Now swap the mock for a real endpoint and do it again.
+
 ## Features
 
 | Tab | What it does |
@@ -72,14 +94,19 @@ History goes to `./data/appai.db` next to where you run it (`APPAI_DATA_DIR` cha
 
 The file is **generated** from `appai/` + `app.py` by `tools/build_standalone.py`. It embeds each module's source and registers an importer that serves them, so the single file runs exactly the same code as the package; nothing is rewritten by hand. Don't edit it: change the package and regenerate. CI fails if the committed copy is out of date.
 
-## Suggested demo flow
+## Running it with a customer
 
-1. **Rehearse with the mock** (sidebar → *Mock local*) to check the flow before touching the customer's endpoint.
-2. **Connect** to the real endpoint, **Chat** once to show TTFT and tokens/s per answer.
-3. **Benchmark** with the customer's SLO (agree on TTFT/ITL targets first) and telemetry URLs filled in. Lead with the *capacity within SLO* number, then use *O que a infraestrutura mostrou* to explain why it stops there.
-4. Optionally **Cold start** per storage backend and **RAG** if their use case is retrieval.
-5. **Custo** with the throughput *within the SLO* and the customer's volumes and prices.
-6. Label each run (GPU, model, storage), compare them in **Histórico & A/B**, and send the **HTML report** afterwards.
+Each step answers a question the customer is already asking.
+
+1. **"Is it fast?"** · *💬 Chat.* Ask one question. Every answer shows time to first token, tokens/s and what it would have cost on a public cloud. Ten seconds, and there is a baseline on the screen.
+2. **"How many people can use it?"** · *📊 Benchmark.* Agree on the SLO **with them** before running: for example, first token under 1 s and fluid reading under 50 ms per token. The number that comes out is theirs, not a vendor claim. Lead with *capacity within SLO*, not peak tokens/s.
+3. **"Why does it stop there?"** · *🔎 O que a infraestrutura mostrou* and the telemetry chart. Queue, KV cache and GPU side by side with latency. This is where the infrastructure conversation starts: more GPU memory, FP8 KV cache, another replica.
+4. **"And when it scales to zero?"** · *🧊 Cold start*, once per storage backend. Their storage, measured in seconds.
+5. **"What about our documents?"** · *📚 RAG.* Where the time goes in an answer with retrieval, including the wait the user actually feels.
+6. **"Is it worth it versus the cloud?"** · *💰 Custo*, using throughput *within the SLO* and their volumes and prices. Break-even on one chart.
+7. **Leave something behind.** Label each run (GPU, model, storage), line them up in *🗂️ Histórico & A/B*, and send the HTML report. It opens offline and prints to PDF.
+
+Rehearse the whole script on the mock first. It streams, queues, hibernates and reports KV-cache and GPU metrics, so you will know every click before anyone is watching. Its numbers are plausible, not real.
 
 ## How to read the results
 

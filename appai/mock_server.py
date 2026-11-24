@@ -259,10 +259,18 @@ def make_handler(sim: Sim):
     return H
 
 
+class _Server(ThreadingHTTPServer):
+    # O padrão do socketserver é 5 conexões pendentes: com dezenas de usuários
+    # simultâneos o kernel descarta SYNs e o cliente só tenta de novo após ~1 s
+    # (retransmissão TCP) — um TTFT falso que nada tem a ver com a simulação.
+    request_queue_size = 1024
+    daemon_threads = True
+
+
 def serve(port: int = 8000, host: str = "127.0.0.1", **kw):
     """Sobe o mock em uma thread; devolve (server, sim)."""
     sim = Sim(**kw)
-    srv = ThreadingHTTPServer((host, port), make_handler(sim))
+    srv = _Server((host, port), make_handler(sim))
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv, sim

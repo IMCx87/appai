@@ -101,3 +101,21 @@ def test_errors_are_records_not_exceptions():
            "temperature": 0, "max_retries": 1, "prices": (0, 0)}
     r = bench.run_one(cfg, {"prompt": "x", "max_tokens": 5})
     assert r["ok"] is False and "error" in r
+
+
+def test_mock_accepts_many_simultaneous_connections():
+    """Regressão: com o backlog padrão (5) do socketserver, 32 conexões
+    simultâneas sofriam retransmissão TCP (~1 s) e o TTFT ficava falso."""
+    from appai.mock_server import serve
+    from tests.conftest import free_port
+    port = free_port()
+    srv, _ = serve(port, decode_tps=400, prefill_tps=50000, max_batch=64)
+    cfg = {"base": f"http://127.0.0.1:{port}/v1", "headers": {}, "verify": False,
+           "model": "mock-llm", "temperature": 0, "max_retries": 1, "prices": (0, 0)}
+    try:
+        reqs = [{"prompt": "x", "max_tokens": 8}] * 32
+        records, _ = bench.run_closed_level(cfg, 32, reqs, lambda *a: None)
+        ttft = [r["ttft"] for r in records if r["ok"]]
+        assert len(ttft) == 32 and bench.pct(ttft, 95) < 0.8
+    finally:
+        srv.shutdown()
