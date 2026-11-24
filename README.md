@@ -10,6 +10,8 @@ Generic LLM benchmarks report numbers. This one is built to answer the questions
 - **Where does the time go in a RAG answer?** (embedding → vector search → prefill → decode)
 - **What would the same traffic cost on a public cloud, and where is the break-even?**
 
+It runs three ways from the same code: as a **single file** you copy anywhere (`streamlit run app_standalone.py`), from a **clone** of this repository, or as a **container** on Kubernetes/NKP with GitOps. See [Ways to run](#ways-to-run).
+
 ## Features
 
 | Tab | What it does |
@@ -26,6 +28,8 @@ Also: exponential-backoff retries including NAI's `404 hibernated endpoint`, Bea
 > The benchmark, cold-start and RAG tests send real requests: they consume tokens and GPU time on the target endpoint. Prices, GPU-hour cost, utilization and energy are **editable assumptions, not measurements**.
 
 ## Quick start
+
+Requires Python 3.10+ (tested on 3.11 and 3.13; CI and the image use 3.11). The fastest path is the [single file](#single-file); from a clone:
 
 ```bash
 python -m venv .venv
@@ -44,7 +48,17 @@ python -m appai.mock_server --port 8000 --max-batch 16 --wake-seconds 20
 # hibernate it with: curl -X POST localhost:8000/admin/hibernate
 ```
 
-## Run as a single file
+## Ways to run
+
+| Mode | Command | Good for |
+|---|---|---|
+| Single file | `streamlit run app_standalone.py` | Copying to any machine with Python: laptop, jump host, a VM in the customer's lab |
+| Repository clone | `streamlit run app.py` | Development |
+| Container / Kubernetes | `docker run …` / `kubectl apply -k k8s/` | Shared deployment on NKP, GitOps |
+
+All three run the same code and show where they came from in the sidebar footer: `arquivo único` + source hash, `local` + git commit, or `container` + the commit and build date baked into the image.
+
+### Single file
 
 `app_standalone.py` is the **whole app in one file**: copy it anywhere (a laptop, a jump host, a VM in the customer's lab) and run it with Streamlit. No clone, no package, same features: chat, benchmark, telemetry, cold start, RAG, history/A-B, cost and the built-in mock.
 
@@ -58,13 +72,14 @@ History goes to `./data/appai.db` next to where you run it (`APPAI_DATA_DIR` cha
 
 The file is **generated** from `appai/` + `app.py` by `tools/build_standalone.py`. It embeds each module's source and registers an importer that serves them, so the single file runs exactly the same code as the package; nothing is rewritten by hand. Don't edit it: change the package and regenerate. CI fails if the committed copy is out of date.
 
-So there are three ways to run the same app:
+## Suggested demo flow
 
-| Mode | Command | Good for |
-|---|---|---|
-| Single file | `streamlit run app_standalone.py` | Copying to any machine with Python, quick demos |
-| Repository clone | `streamlit run app.py` | Development |
-| Container / Kubernetes | `docker run …` / `kubectl apply -k k8s/` | Shared deployment on NKP, GitOps |
+1. **Rehearse with the mock** (sidebar → *Mock local*) to check the flow before touching the customer's endpoint.
+2. **Connect** to the real endpoint, **Chat** once to show TTFT and tokens/s per answer.
+3. **Benchmark** with the customer's SLO (agree on TTFT/ITL targets first) and telemetry URLs filled in. Lead with the *capacity within SLO* number, then use *O que a infraestrutura mostrou* to explain why it stops there.
+4. Optionally **Cold start** per storage backend and **RAG** if their use case is retrieval.
+5. **Custo** with the throughput *within the SLO* and the customer's volumes and prices.
+6. Label each run (GPU, model, storage), compare them in **Histórico & A/B**, and send the **HTML report** afterwards.
 
 ## How to read the results
 
@@ -92,11 +107,13 @@ So there are three ways to run the same app:
 
 Environment variables (all optional) pre-fill the UI: `NAI_API_URL`, `NAI_API_KEY`, `NAI_MODEL`, `NAI_EMBED_MODEL`, `VLLM_METRICS_URL`, `PROMETHEUS_URL`. `APPAI_DATA_DIR` sets where the run history (`appai.db`) is stored: `./data` locally, `/data` in the container. If the directory is not writable, history is disabled and the app keeps working.
 
-The sidebar footer shows the app version, the commit it was built from, whether it runs from a local clone or a container, and where history is stored.
+The sidebar footer shows the app version, how it is running (single file, local clone or container), the commit or source hash, and where history is stored.
 
 ## Docker
 
-`.github/workflows/docker-build.yml` runs lint (`ruff`) and tests (`pytest`) on every push and pull request. On pushes it then builds a **multi-arch image (`linux/amd64`, `linux/arm64`)** and pushes it to Docker Hub (`imcx87/appai`) with tags for the branch name and `sha-<commit>`; on `main` also `latest` and `main-<timestamp>-<sha>` (sortable, used by Flux image automation). The commit and build date are baked into the image. Pushing requires the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets; without them the job still builds both architectures (so the Dockerfile is validated) and emits a warning instead of pushing. Commits that only touch `k8s/`, `flux/` or Markdown don't trigger a new image.
+`.github/workflows/docker-build.yml` runs lint (`ruff`), checks that `app_standalone.py` is in sync with the package, and runs the tests (`pytest`) on every push and pull request. On pushes it then builds a **multi-arch image (`linux/amd64`, `linux/arm64`)** and pushes it to Docker Hub (`imcx87/appai`) with tags for the branch name and `sha-<commit>`; on `main` also `latest` and `main-<timestamp>-<sha>` (sortable, used by Flux image automation). The commit and build date are baked into the image. Pushing requires the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets; without them the job still builds both architectures (so the Dockerfile is validated) and emits a warning instead of pushing. Commits that only touch `k8s/`, `flux/` or Markdown don't trigger a new image.
+
+> **Current status:** the Docker Hub secrets are not configured in this repository yet, so CI builds the image but does not publish it (and no earlier run published one either). Add `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` under *Settings → Secrets and variables → Actions* before deploying to Kubernetes; the manifests pull `imcx87/appai` from Docker Hub.
 
 The container runs as non-root (UID 10001), exposes port `8501` and keeps history in the `/data` volume.
 
@@ -107,7 +124,7 @@ docker run -p 8501:8501 -v appai-data:/data imcx87/appai:local
 
 ## Kubernetes / GitOps (Nutanix Kubernetes Platform)
 
-`k8s/` holds plain manifests: Namespace, a 1 Gi **PVC for the run history** (default StorageClass), Deployment (one replica, `Recreate` strategy because the volume is RWO, non-root with `fsGroup`, health probes on `/_stcore/health`, requests/limits), NodePort Service on `30851`, and Kustomization.
+Prerequisite: a published image (see the status note above). `k8s/` holds plain manifests: Namespace, a 1 Gi **PVC for the run history** (default StorageClass), Deployment (one replica, `Recreate` strategy because the volume is RWO, non-root with `fsGroup`, health probes on `/_stcore/health`, requests/limits), NodePort Service on `30851`, and Kustomization.
 
 ```bash
 kubectl apply -k k8s/
